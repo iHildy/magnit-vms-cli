@@ -1,5 +1,7 @@
 # Build artifacts
-hours
+/hours
+/hours.exe
+/dist
 *.exe
 *.dll
 *.so
