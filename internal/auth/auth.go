@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,7 +24,7 @@ func NewHTTPClient() (*http.Client, error) {
 		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	return &http.Client{
-		Jar: jar,
+		Jar:     jar,
 		Timeout: 45 * time.Second,
 	}, nil
 }
@@ -49,10 +50,13 @@ func (a *Authenticator) Login(ctx context.Context, username, password string) er
 		return fmt.Errorf("login request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("login failed with status %d", resp.StatusCode)
+	}
+	if err := validateLoginResponse(resp, body); err != nil {
+		return err
 	}
 
 	_, err = a.CurrentUser(ctx)
@@ -92,13 +96,29 @@ func (a *Authenticator) CurrentUser(ctx context.Context) (map[string]any, error)
 	return out, nil
 }
 
-func ExtractXSRFToken(client *http.Client, baseURL string) (string, error) {
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return "", fmt.Errorf("parse base url: %w", err)
+func validateLoginResponse(resp *http.Response, body []byte) error {
+	lowerBody := bytes.ToLower(body)
+	if bytes.Contains(lowerBody, []byte("invalid username / password")) || bytes.Contains(lowerBody, []byte("invalid username/password")) {
+		return fmt.Errorf("invalid username or password")
 	}
 
-	cookies := client.Jar.Cookies(u)
+	if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+		if strings.EqualFold(resp.Request.URL.Path, "/login.html") &&
+			bytes.Contains(lowerBody, []byte("name=\"password_login\"")) &&
+			bytes.Contains(lowerBody, []byte("please log in to your account below")) {
+			return fmt.Errorf("login did not establish an authenticated session; verify credentials or whether your account requires interactive SSO/MFA")
+		}
+	}
+
+	return nil
+}
+
+func ExtractXSRFToken(client *http.Client, baseURL string) (string, error) {
+	cookies, err := collectSessionCookies(client, baseURL)
+	if err != nil {
+		return "", err
+	}
+
 	for _, c := range cookies {
 		name := strings.ToLower(c.Name)
 		if name == "xsrf-token" || name == "x-xsrf-token" || name == "xsrftoken" || name == "_xsrf" {
@@ -116,12 +136,11 @@ func ExtractXSRFToken(client *http.Client, baseURL string) (string, error) {
 }
 
 func ExtractAccessToken(client *http.Client, baseURL string) (string, error) {
-	u, err := url.Parse(baseURL)
+	cookies, err := collectSessionCookies(client, baseURL)
 	if err != nil {
-		return "", fmt.Errorf("parse base url: %w", err)
+		return "", err
 	}
 
-	cookies := client.Jar.Cookies(u)
 	for _, c := range cookies {
 		name := strings.ToLower(c.Name)
 		if name == "productionaccess_token" || name == "access_token" {
@@ -136,4 +155,56 @@ func ExtractAccessToken(client *http.Client, baseURL string) (string, error) {
 	}
 
 	return "", fmt.Errorf("access token cookie not found in session")
+}
+
+func collectSessionCookies(client *http.Client, baseURL string) ([]*http.Cookie, error) {
+	if client == nil || client.Jar == nil {
+		return nil, fmt.Errorf("http cookie jar is not configured")
+	}
+
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse base url: %w", err)
+	}
+
+	var out []*http.Cookie
+	seen := make(map[string]struct{})
+	for _, cookieURL := range cookieLookupURLs(u) {
+		for _, c := range client.Jar.Cookies(cookieURL) {
+			if c == nil || c.Name == "" {
+				continue
+			}
+			key := strings.ToLower(c.Name) + "\x00" + c.Value
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			cp := *c
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
+func cookieLookupURLs(base *url.URL) []*url.URL {
+	paths := []string{
+		"/",
+		"/wand",
+		"/wand/",
+		"/wand2",
+		"/wand2/",
+		"/wand/app/worker/",
+		"/wand/app/worker/index.html",
+	}
+
+	urls := make([]*url.URL, 0, len(paths))
+	for _, path := range paths {
+		u := *base
+		u.Path = path
+		u.RawPath = ""
+		u.RawQuery = ""
+		u.Fragment = ""
+		urls = append(urls, &u)
+	}
+	return urls
 }
