@@ -33,7 +33,7 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 	var password string
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Store credentials in keychain and verify login",
+		Short: "Store credentials and verify login",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
@@ -75,7 +75,7 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			if err := keyring.SaveCredentials(keyring.Credentials{Username: username, Password: password}); err != nil {
+			if err := keyring.SaveCredentialsWithStore(keyring.Credentials{Username: username, Password: password}, app.CredentialStore()); err != nil {
 				return err
 			}
 
@@ -106,7 +106,7 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			creds, err := keyring.LoadCredentials()
+			creds, err := keyring.LoadCredentialsWithStore(app.CredentialStore())
 			if err != nil {
 				payload := map[string]any{"ok": true, "operation": "auth_status", "authenticated": false}
 				return output.Write(app.Stdout, app.JSONOutput, "No stored credentials", payload)
@@ -147,9 +147,9 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 func newAuthLogoutCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
-		Short: "Delete stored credentials from keychain",
+		Short: "Delete stored credentials",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := keyring.DeleteCredentials(); err != nil {
+			if err := keyring.DeleteCredentialsWithStore(app.CredentialStore()); err != nil {
 				return err
 			}
 			payload := map[string]any{"ok": true, "operation": "auth_logout"}

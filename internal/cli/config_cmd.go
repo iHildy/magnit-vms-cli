@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ihildy/magnit-vms-cli/internal/keyring"
 	"github.com/ihildy/magnit-vms-cli/internal/output"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ func newConfigCmd(app *App) *cobra.Command {
 	}
 	cmd.AddCommand(newConfigSetDefaultEngagementCmd(app))
 	cmd.AddCommand(newConfigSetTimezoneCmd(app))
+	cmd.AddCommand(newConfigSetCredentialStoreCmd(app))
 	return cmd
 }
 
@@ -65,5 +67,29 @@ func newConfigSetTimezoneCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&timezone, "tz", "", "IANA timezone, e.g. America/Los_Angeles")
 	_ = cmd.MarkFlagRequired("tz")
+	return cmd
+}
+
+func newConfigSetCredentialStoreCmd(app *App) *cobra.Command {
+	var store string
+	cmd := &cobra.Command{
+		Use:   "set-credential-store --store <auto|keyring|file>",
+		Short: "Set credential storage backend",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store = keyring.NormalizeCredentialStore(store)
+			if err := keyring.ValidateCredentialStore(store); err != nil {
+				return err
+			}
+			app.Cfg.CredentialStore = store
+			if err := app.SaveConfig(); err != nil {
+				return err
+			}
+			payload := map[string]any{"ok": true, "operation": "config_set_credential_store", "credential_store": store, "config_path": app.CfgPath}
+			human := fmt.Sprintf("Credential store set to %s", store)
+			return output.Write(app.Stdout, app.JSONOutput, human, payload)
+		},
+	}
+	cmd.Flags().StringVar(&store, "store", keyring.StoreAuto, "Credential store backend: auto, keyring, file")
+	_ = cmd.MarkFlagRequired("store")
 	return cmd
 }

@@ -35,6 +35,7 @@ This CLI does **not** parse natural language and does **not** call AI models. It
 - `magnit engagement list`
 - `magnit config set-default-engagement --id <engagement_id>`
 - `magnit config set-timezone --tz <IANA_TZ>`
+- `magnit config set-credential-store --store <auto|keyring|file>`
 - `magnit show --date YYYY-MM-DD [--engagement ID] [--json]`
 - `magnit set --date YYYY-MM-DD --span labor:09:00-12:00 --span lunch:12:00-12:30 --span labor:12:30-17:00 [--engagement ID] [--dry-run] [--yes] [--json]`
 - `magnit mark-dnw --date YYYY-MM-DD [--engagement ID] [--dry-run] [--yes] [--json]`
@@ -45,7 +46,9 @@ This CLI does **not** parse natural language and does **not** call AI models. It
 - Strict validation for spans.
 - Conflict confirmation when replacing an already-populated day.
 - `--dry-run` prints proposed diff and payload without saving.
-- Credentials stored in OS keychain via go-keyring.
+- Credential store supports `auto` (default), `keyring`, and `file`.
+- In `auto`, CLI tries OS keyring first and falls back to `~/.config/magnit-vms-cli/credentials.yaml` on systems without Secret Service.
+- Override per process with `MAGNIT_CREDENTIAL_STORE=auto|keyring|file`.
 
 ## Build
 
@@ -78,6 +81,20 @@ Check auth:
 
 ```bash
 ./magnit auth status --json
+```
+
+## Ubuntu Server Notes
+
+For headless Ubuntu servers, use file-backed credentials explicitly:
+
+```bash
+magnit config set-credential-store --store file
+```
+
+Or per command:
+
+```bash
+MAGNIT_CREDENTIAL_STORE=file magnit auth login --username your-email@example.com
 ```
 
 ## Notes

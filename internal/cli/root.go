@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/ihildy/magnit-vms-cli/internal/keyring"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +21,9 @@ func NewRootCmd() *cobra.Command {
 			}
 			if app.Cfg.BaseURL == "" {
 				return fmt.Errorf("base URL is not configured")
+			}
+			if err := keyring.ValidateCredentialStore(app.CredentialStore()); err != nil {
+				return err
 			}
 			return nil
 		},

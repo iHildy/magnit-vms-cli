@@ -19,13 +19,13 @@ import (
 )
 
 type App struct {
-	Cfg              config.Config
-	CfgPath          string
-	JSONOutput       bool
-	BaseURLOverride  string
-	Stdout           io.Writer
-	Stderr           io.Writer
-	Stdin            io.Reader
+	Cfg             config.Config
+	CfgPath         string
+	JSONOutput      bool
+	BaseURLOverride string
+	Stdout          io.Writer
+	Stderr          io.Writer
+	Stdin           io.Reader
 }
 
 func NewApp() *App {
@@ -58,7 +58,7 @@ func (a *App) BaseURL() string {
 }
 
 func (a *App) NewAuthedClient(ctx context.Context) (*api.Client, map[string]any, *httpContext, error) {
-	creds, err := keyring.LoadCredentials()
+	creds, err := keyring.LoadCredentialsWithStore(a.CredentialStore())
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("credentials unavailable, run `magnit auth login` first: %w", err)
 	}
@@ -83,6 +83,13 @@ func (a *App) NewAuthedClient(ctx context.Context) (*api.Client, map[string]any,
 
 	client := &api.Client{BaseURL: a.BaseURL(), HTTP: httpClient}
 	return client, user, &httpContext{Auth: authenticator}, nil
+}
+
+func (a *App) CredentialStore() string {
+	if store := strings.TrimSpace(os.Getenv(keyring.CredentialStoreEnvVar)); store != "" {
+		return store
+	}
+	return strings.TrimSpace(a.Cfg.CredentialStore)
 }
 
 type httpContext struct {

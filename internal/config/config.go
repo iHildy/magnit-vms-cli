@@ -21,9 +21,10 @@ type OutputConfig struct {
 }
 
 type Config struct {
-	BaseURL             string `yaml:"base_url,omitempty"`
-	DefaultEngagementID int64  `yaml:"default_engagement_id,omitempty"`
-	Timezone            string `yaml:"timezone,omitempty"`
+	BaseURL             string       `yaml:"base_url,omitempty"`
+	DefaultEngagementID int64        `yaml:"default_engagement_id,omitempty"`
+	Timezone            string       `yaml:"timezone,omitempty"`
+	CredentialStore     string       `yaml:"credential_store,omitempty"`
 	Output              OutputConfig `yaml:"output,omitempty"`
 }
 
