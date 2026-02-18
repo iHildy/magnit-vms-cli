@@ -50,7 +50,13 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 				return fmt.Errorf("username is required")
 			}
 
-			password, err := resolvePassword(app, password)
+			passwordFlagSet := cmd.Flags().Changed("password")
+			passwordFromStdin, err := cmd.Flags().GetBool("password-stdin")
+			if err != nil {
+				return err
+			}
+
+			password, err := resolvePassword(app, password, passwordFlagSet, passwordFromStdin)
 			if err != nil {
 				return err
 			}
@@ -89,6 +95,7 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&username, "username", "", "Account username (email)")
 	cmd.Flags().StringVar(&password, "password", "", "Account password (non-interactive; avoid shell history leaks)")
+	cmd.Flags().Bool("password-stdin", false, "Read account password from stdin (recommended for complex passwords)")
 	return cmd
 }
 
@@ -151,14 +158,33 @@ func newAuthLogoutCmd(app *App) *cobra.Command {
 	}
 }
 
-func resolvePassword(app *App, provided string) (string, error) {
-	if provided != "" {
+func resolvePassword(app *App, provided string, providedSet bool, fromStdin bool) (string, error) {
+	if providedSet && fromStdin {
+		return "", fmt.Errorf("use only one of --password or --password-stdin")
+	}
+
+	if fromStdin {
+		password, err := io.ReadAll(app.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("read password from stdin: %w", err)
+		}
+		value := strings.TrimRight(string(password), "\r\n")
+		if value == "" {
+			return "", fmt.Errorf("password is required")
+		}
+		return value, nil
+	}
+
+	if providedSet {
+		if provided == "" {
+			return "", fmt.Errorf("password is required")
+		}
 		return provided, nil
 	}
 
 	stdinFile, ok := app.Stdin.(*os.File)
-	if !ok {
-		return "", fmt.Errorf("stdin is not a terminal file")
+	if !ok || !term.IsTerminal(int(stdinFile.Fd())) {
+		return "", fmt.Errorf("password is required; pass --password or --password-stdin when non-interactive")
 	}
 	fmt.Fprint(app.Stderr, "Password: ")
 	bytes, err := term.ReadPassword(int(stdinFile.Fd()))
@@ -166,7 +192,7 @@ func resolvePassword(app *App, provided string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read password: %w", err)
 	}
-	password := strings.TrimSpace(string(bytes))
+	password := string(bytes)
 	if password == "" {
 		return "", fmt.Errorf("password is required")
 	}

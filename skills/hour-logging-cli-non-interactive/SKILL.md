@@ -8,7 +8,7 @@ description: Use this skill to run the `hours` CLI in fully non-interactive mode
 ## Overview
 
 Execute `hours` commands with explicit flags so the run is deterministic, scriptable, and prompt-free.
-Prefer `--json`, `--yes`, `--engagement`, and `--password` where needed to avoid interactive input.
+Prefer `--json`, `--yes`, `--engagement`, and `--password-stdin` where needed to avoid interactive input.
 
 ## Non-Interactive Workflow
 
@@ -18,7 +18,7 @@ Prefer `--json`, `--yes`, `--engagement`, and `--password` where needed to avoid
 
 2. Authenticate non-interactively:
 - Run `./hours auth login --username <email> --password '<password>'`.
-- Store credentials in keychain; avoid repeating login every command.
+- Alternative for complex passwords: `printf '%s' '<password>' | ./hours auth login --username <email> --password-stdin`.
 
 3. Verify authentication:
 - Run `./hours auth status --json`.
@@ -45,6 +45,8 @@ Prefer `--json`, `--yes`, `--engagement`, and `--password` where needed to avoid
 Authentication:
 
 ```bash
+./hours auth login --username "$HOURS_USERNAME" --password "$HOURS_PASSWORD"
+or
 printf '%s' "$HOURS_PASSWORD" | ./hours auth login --username "$HOURS_USERNAME" --password-stdin
 ./hours auth status --json
 ```
@@ -81,12 +83,12 @@ Verify day:
 - Always pass `--engagement <id>` unless a default engagement is already configured.
 - Always use `YYYY-MM-DD` dates and `type:HH:MM-HH:MM` spans.
 - Treat non-zero exit status as failure.
-- Prefer environment variables for passwords to reduce shell history exposure:
-`./hours auth login --username "$HOURS_USERNAME" --password "$HOURS_PASSWORD"`.
+- Prefer `--password-stdin` for passwords with shell-sensitive characters and to reduce shell-history/process-list exposure:
+`printf '%s' "$HOURS_PASSWORD" | ./hours auth login --username "$HOURS_USERNAME" --password-stdin`.
 
 ## Failure Handling
 
-- If auth fails (`authenticated: false`), run `auth login` again with explicit `--password`.
+- If auth fails (`authenticated: false`), run `auth login` again; for complex passwords prefer `--password-stdin` over `--password`.
 - If a command errors on engagement resolution, pass `--engagement <id>` or configure a default.
 - If span validation fails, fix overlaps/order/format and rerun.
 - If uncertain about payload impact, rerun with `--dry-run --json`.

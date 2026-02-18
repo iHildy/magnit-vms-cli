@@ -29,7 +29,7 @@ This CLI does **not** parse natural language and does **not** call AI models. It
 
 ## Commands
 
-- `hours auth login --username <email> [--password '<password>']`
+- `hours auth login --username <email> [--password '<password>' | --password-stdin]`
 - `hours auth status`
 - `hours auth logout`
 - `hours engagement list`
@@ -66,6 +66,12 @@ Non-interactive password flag:
 
 ```bash
 ./hours auth login --username your-email@example.com --password 'your-password'
+```
+
+Non-interactive stdin password (safest for special characters like `&`, `$`, `*`, `^`):
+
+```bash
+printf '%s' 'b5&$^*1h6' | ./hours auth login --username your-email@example.com --password-stdin
 ```
 
 Check auth:
